@@ -1,0 +1,131 @@
+- name: update repo
+  yum:
+   name: "*"
+   state: latest
+
+- name: create username
+  user:
+   name: "{{username}}"
+   state: present
+
+- name: create directory
+  file:
+   path: /home/{{username}}/public_html
+   state: directory
+
+- name: change ownership
+  file:
+    path: /home/{{username}}
+    owner: "{{username}}"
+    group: "{{username}}"
+    recurse: yes
+
+- name: install apache
+  yum:
+   name: httpd
+   state: installed
+
+- name: start apache
+  service:
+   name: httpd
+   enabled: yes
+   state: started
+
+- name: install EPEL repository
+  command: sudo amazon-linux-extras install epel -y
+
+- name: Install certbot
+  yum:
+   name: certbot-apache
+   state: present
+
+- name: Install httpd-itk module
+  yum:
+    name: httpd-itk
+    state: present
+
+- name: enable itk mod
+  lineinfile:
+    path: /etc/httpd/conf.modules.d/00-mpm-itk.conf
+    line: 'LoadModule mpm_itk_module modules/mod_mpm_itk.so'
+    state: present
+    regexp: '^LoadModule mpm_itk_module modules/mod_mpm_itk\.so$'
+
+
+- name: create directory
+  file:
+   path: /etc/httpd/conf.d/virtualhost
+   state: directory
+
+
+- name: add Vhost dir entry in httpd file
+  lineinfile:
+    path: /etc/httpd/conf/httpd.conf
+    line: 'IncludeOptional conf.d/virtualhost/*.conf'
+    state: present
+    regexp: '^IncludeOptional conf\.d/virtualhost/\*\.conf$'
+
+
+
+
+
+- name: create conf file
+  copy:
+   dest: /etc/httpd/conf.d/virtualhost/{{domainname}}.conf
+   content: |
+            <VirtualHost *:80>
+            ServerName {{domainname}}
+            DocumentRoot /home/{{username}}/public_html
+            <Directory /home/{{username}}/public_html>
+               Options FollowSymLinks
+               AllowOverride All
+               Require all granted
+            </Directory>
+            <IfModule mpm_itk_module>
+            AssignUserId {{username}} {{username}}
+            </IfModule>
+
+            ProxyPreserveHost On
+            ProxyPass / http://127.0.0.1:{{portno}}/
+            ProxyPassReverse / http://127.0.0.1:{{portno}}/
+
+              ErrorLog logs/{{domainname}}-error.log
+              CustomLog logs/{{domainname}}-access.log common
+            </Virtualhost>
+
+
+- name: restart apache
+  service:
+   name: httpd
+   state: restarted
+
+
+- name: install java jdk 11 from amzn extras
+  command: sudo amazon-linux-extras install java-openjdk11 -y
+
+
+- name: Check if Maven repository configuration exists
+  stat:
+    path: /etc/yum.repos.d/epel-apache-maven.repo
+  register: repo_file_status
+
+
+- name: Download Maven package repository configuration
+  get_url:
+    url: https://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo
+    dest: /etc/yum.repos.d/epel-apache-maven.repo
+  when: not repo_file_status.stat.exists
+
+
+- name: specify mvn version
+  command: sudo sed -i s/\$releasever/6/g /etc/yum.repos.d/epel-apache-maven.repo
+
+
+- name: Install Apache Maven
+  yum:
+    name: apache-maven
+    state: present
+
+
+
+
