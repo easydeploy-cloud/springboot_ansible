@@ -1,6 +1,6 @@
 ## ansible run command##
 
-ansible-playbook -i hosts -e "username=baskar domainname=abc.com privateip=1.2.3 portno=6000" application.yml
+ansible-playbook -i hosts -e "username=<username> domainname=<domainname>  portno=8080" application.yml
 
 
 ## springboot run command ##
